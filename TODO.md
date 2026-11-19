@@ -18,8 +18,8 @@ Today the clip window (`--start` / `--end`) is chosen by hand. Replace that with
 
 - [x] In `ingest.py`, download a 360p copy alongside the 1080p video (same source, same timeline).
 - [x] Record both paths in `ingest_metadata.json`.
-- [ ] Run crop-location analysis (facecam detection, any frame scanning) on the 360p copy only.
-- [ ] Scale detected boxes from 360p to the 1080p frame before cropping; render from the 1080p copy.
+- [x] Run frame scanning on the 360p copy (`auto_clip.py` motion); facecam detection moved to 1080p frames for accuracy.
+- [x] Boxes are normalised 0-1 and scaled onto the 1080p frame; rendering uses the 1080p copy.
 
 ## Bug — AV1 sources can't be decoded
 
@@ -30,18 +30,18 @@ Today the clip window (`--start` / `--end`) is chosen by hand. Replace that with
 
 New fixed layout for streamer content in the 1080x1920 output. No face tracking: both regions are static crops of the source frame.
 
-- [ ] Identify the streamer's facecam overlay region in the source frame (a fixed box for the whole video), detected automatically once at the start.
-- [ ] Detection model: `highheat4/webcam-detect` (YOLO12s, Apache-2.0), run on CPU at 640 px on the 360p analysis copy.
-- [ ] Sampling: ~12 frames spread across the first few minutes (not consecutive), so stream content changes between samples.
-- [ ] Reject faces in the stream content: keep only boxes that appear in the same place (IoU ≥ 0.8 with the cluster median) in ≥ 75% of samples.
-- [ ] Rationale: the facecam is a fixed overlay, while faces in gameplay, videos or cutscenes move, change size or disappear between samples.
-- [ ] Cluster the stable boxes; the facecam box is the median of its cluster.
-- [ ] When several stable cams are found, pick the largest one (or expose `--facecam-index`).
-- [ ] When no stable cam is found, log it and fall back to the existing `auto` layout instead of guessing.
+- [x] Identify the streamer's facecam overlay region in the source frame (a fixed box for the whole video), detected automatically once at the start.
+- [x] Detection model: `highheat4/webcam-detect` (YOLO12s, Apache-2.0), run on CPU at 640 px on frames of the 1080p video (the 360p copy merged stacked cams).
+- [x] Sampling: ~12 frames spread across the first few minutes (not consecutive), so stream content changes between samples.
+- [x] Reject faces in the stream content: keep only boxes that appear in the same place (IoU ≥ 0.8 with the cluster median) in ≥ 75% of samples.
+- [x] Rationale: the facecam is a fixed overlay, while faces in gameplay, videos or cutscenes move, change size or disappear between samples.
+- [x] Cluster the stable boxes; the facecam box is the median of its cluster.
+- [x] When several stable cams are found, pick the largest one (or expose `--facecam-index`).
+- [x] When no stable cam is found, log it and fall back to the existing `auto` layout instead of guessing.
 - [ ] Benchmark on real VODs (single cam, multi-cam, borderless cams, react streams with faces in the content) before wiring it in.
-- [ ] Bottom two thirds (1080x1280): crop the stream content so the facecam overlay is left out.
-- [ ] Top third (1080x640): crop the facecam region and stretch it to 1080x640 (no aspect-ratio preservation for now).
-- [ ] Stack the two crops into one 1080x1920 frame.
+- [x] Bottom two thirds (1080x1280): crop the stream content so the facecam overlay is left out.
+- [x] Top third (1080x640): crop the facecam region and stretch it to 1080x640 (no aspect-ratio preservation for now).
+- [x] Stack the two crops into one 1080x1920 frame.
 - [x] Add it as a `--mode` option in `smart_crop.py` and document it in `feature.md`.
 
 ## 3. End-to-end flow — URL in, clips out
