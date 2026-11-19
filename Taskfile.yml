@@ -1,16 +1,26 @@
 version: "3"
 
+# Works on Linux, macOS and Windows: Task runs every command through its own built-in
+# shell, so the same commands apply everywhere; only the venv layout and the system
+# python name differ per OS.
+
 vars:
   VENV: '{{.VENV | default ".venv"}}'
   PYTHON: '{{if eq OS "windows"}}{{.VENV}}/Scripts/python.exe{{else}}{{.VENV}}/bin/python{{end}}'
   SYSTEM_PYTHON: '{{.SYSTEM_PYTHON | default (eq OS "windows" | ternary "python" "python3")}}'
+  VENV_FIX_HINT: '{{if eq OS "windows"}}install Python 3.10+ (winget install Python.Python.3.12){{else}}on Ubuntu/Debian run `sudo apt install python3-venv`{{end}}'
+  FFMPEG_FIX_HINT: '{{if eq OS "windows"}}winget install Gyan.FFmpeg, then open a new terminal{{else}}sudo apt install ffmpeg (macOS: brew install ffmpeg){{end}}'
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
 
 tasks:
   install:
     desc: Create the virtualenv and install Python dependencies
     preconditions:
-      - sh: "{{.SYSTEM_PYTHON}} -c 'import venv, ensurepip'"
-        msg: "{{.SYSTEM_PYTHON}} can't create virtualenvs: on Ubuntu/Debian run `sudo apt install python3-venv`, or pass SYSTEM_PYTHON=<python with venv>"
+      - sh: "{{.SYSTEM_PYTHON}} -c 'import sys, venv, ensurepip; sys.exit(sys.version_info < (3, 10))'"
+        msg: "{{.SYSTEM_PYTHON}} can't create a Python 3.10+ virtualenv: {{.VENV_FIX_HINT}}, or pass SYSTEM_PYTHON=<python>"
     cmds:
       - "{{.SYSTEM_PYTHON}} -m venv {{.VENV}}"
       - "{{.PYTHON}} -m pip install --upgrade pip"
@@ -51,5 +61,5 @@ tasks:
     preconditions:
       - sh: test -f {{.PYTHON}}
         msg: "No virtualenv at {{.VENV}}: run `task install` (or pass VENV=<path>)"
-      - sh: command -v ffmpeg && command -v ffprobe
-        msg: "ffmpeg and ffprobe must be on PATH"
+      - sh: ffmpeg -hide_banner -version > /dev/null && ffprobe -hide_banner -version > /dev/null
+        msg: "ffmpeg and ffprobe must be on PATH: {{.FFMPEG_FIX_HINT}}"
