@@ -31,7 +31,7 @@ def test_clip_renders_captioned_streamer_clip_from_sample(tmp_path):
 
     assert run_summary["facecam"] is not None and run_summary["stream_box"] is not None
     assert [clip["layout"] for clip in run_summary["clips"]] == ["streamer"]
-    assert {"clips.json", "facecam.json", "run.json", "clip_01.mp4"} <= {p.name for p in output_dir.iterdir()}
+    assert {"clips.json", "facecam.json", "run.json", "clip_01.mp4", "preview.jpg"} <= {p.name for p in output_dir.iterdir()}
     capture = cv2.VideoCapture(run_summary["clips"][0]["file"])
     assert (int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))) == (1080, 1920)
     capture.release()
