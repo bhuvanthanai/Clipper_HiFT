@@ -74,3 +74,28 @@ def test_get_stream_box_per_axis_rule(facecam_box, expected_stream_box):
         assert stream_box is None
     else:
         assert stream_box == pytest.approx(expected_stream_box)
+
+
+def test_streamer_mode_without_facecam_renders_stream_only(tmp_path):
+    source_video = tmp_path / "source_1080p.mp4"
+    output_video = tmp_path / "stream_only.mp4"
+    detection_path = tmp_path / "facecam.json"
+    transcode_sample(output_path=source_video, extra_args=[])
+    detection_path.write_text(json.dumps({"facecam": None, "stream_box": None, "stable_facecams": [], "sampled_frames": 12, "elapsed_seconds": 0}))
+
+    completed = subprocess.run(
+        [
+            sys.executable, str(SCRIPTS_DIR / "smart_crop.py"),
+            "--input", str(source_video), "--output", str(output_video),
+            "--mode", "streamer", "--facecam-detection", str(detection_path),
+            "--start", "2", "--end", "4", "--fps", "30",
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    result = json.loads(completed.stdout)
+
+    assert result["layout"] == "stream_only"
+    assert result["streamer_layout"]["stream_box"] == [656, 0, 1264, 1080]
+    capture = cv2.VideoCapture(str(output_video))
+    assert (int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))) == (1080, 1920)
+    capture.release()

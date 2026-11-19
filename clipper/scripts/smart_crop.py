@@ -142,18 +142,35 @@ def make_blurred_pillarbox(frame, target_w=1080, target_h=1920):
 STREAMER_FACECAM_HEIGHT_RATIO = 1.0 / 3.0
 
 
+def get_stream_only_layout(frame_w: int, frame_h: int, target_w: int, target_h: int) -> dict:
+    """Centred crop of the source frame at the output aspect ratio (full height for landscape sources)."""
+    crop_w = min(frame_w, int(round(frame_h * target_w / target_h)))
+    crop_h = min(frame_h, int(round(crop_w * target_h / target_w)))
+    x1 = (frame_w - crop_w) // 2
+    y1 = (frame_h - crop_h) // 2
+    return {
+        "layout": "stream_only",
+        "facecam_box": None,
+        "stream_box": [x1, y1, x1 + crop_w, y1 + crop_h],
+        "facecam_height": 0,
+        "stable_facecam_count": 0,
+    }
+
+
 def resolve_streamer_layout(
     analysis_video_path: str,
     frame_w: int,
     frame_h: int,
+    target_w: int,
     target_h: int,
     facecam_index: int,
     facecam_detection: dict | None,
 ) -> dict | None:
     """
     Returns pixel boxes for the source frame from a precomputed facecam_detect.py result,
-    or detects the facecam once (on the analysis video) when none is given. Returns None
-    when no stable facecam (or no usable stream crop) is found.
+    or detects the facecam once (on the analysis video) when none is given. When no stable
+    facecam (or no usable stream crop) is found, returns a stream-only layout: a centred
+    9:16 crop of the stream content over the whole output frame.
     """
     if facecam_detection is None:
         from facecam_detect import detect_facecam
@@ -165,11 +182,10 @@ def resolve_streamer_layout(
         f"{detection['sampled_frames']} frames in {detection['elapsed_seconds']}s",
         file=sys.stderr,
     )
-    if detection["facecam"] is None:
-        return None
-    if detection["stream_box"] is None:
-        print("[smart_crop] Facecam straddles the frame centre on both axes; no stream crop possible.", file=sys.stderr)
-        return None
+    if detection["facecam"] is None or detection["stream_box"] is None:
+        reason = "no stable facecam" if detection["facecam"] is None else "facecam straddles the frame centre on both axes"
+        print(f"[smart_crop] {reason}; rendering the stream content only.", file=sys.stderr)
+        return get_stream_only_layout(frame_w=frame_w, frame_h=frame_h, target_w=target_w, target_h=target_h)
 
     def get_box_px(box_normalised):
         return [
@@ -180,6 +196,7 @@ def resolve_streamer_layout(
         ]
 
     return {
+        "layout": "streamer",
         "facecam_box": get_box_px(detection["facecam"]["box"]),
         "stream_box": get_box_px(detection["stream_box"]),
         "facecam_height": int(round(target_h * STREAMER_FACECAM_HEIGHT_RATIO)),
@@ -188,9 +205,14 @@ def resolve_streamer_layout(
 
 
 def make_streamer_frame(frame, streamer_layout: dict, target_w: int, target_h: int):
-    """Facecam stretched over the top third, stream crop stretched over the bottom two thirds."""
-    fx1, fy1, fx2, fy2 = streamer_layout["facecam_box"]
+    """
+    Facecam stretched over the top third and stream crop stretched over the bottom two
+    thirds; with no facecam, the stream crop fills the whole frame.
+    """
     sx1, sy1, sx2, sy2 = streamer_layout["stream_box"]
+    if streamer_layout["facecam_box"] is None:
+        return cv2.resize(frame[sy1:sy2, sx1:sx2], (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+    fx1, fy1, fx2, fy2 = streamer_layout["facecam_box"]
     facecam_height = streamer_layout["facecam_height"]
     canvas = np.empty((target_h, target_w, 3), dtype=np.uint8)
     canvas[:facecam_height] = cv2.resize(frame[fy1:fy2, fx1:fx2], (target_w, facecam_height), interpolation=cv2.INTER_LINEAR)
@@ -253,15 +275,12 @@ def process_smart_crop(
             analysis_video_path=analysis_video_path or input_path,
             frame_w=orig_w,
             frame_h=orig_h,
+            target_w=target_w,
             target_h=target_h,
             facecam_index=facecam_index,
             facecam_detection=facecam_detection,
         )
-        if streamer_layout is None:
-            print("[smart_crop] No stable facecam found; falling back to auto layout.", file=sys.stderr)
-            forced_mode = "auto"
-        else:
-            print(f"[smart_crop] Streamer layout: {streamer_layout}", file=sys.stderr)
+        print(f"[smart_crop] Streamer layout: {streamer_layout}", file=sys.stderr)
 
     # Initialize MediaPipe Face Detection
     face_detector = None
@@ -455,7 +474,7 @@ def process_smart_crop(
         "resolution": f"{target_w}x{target_h}",
         "frames": frame_idx,
         "processing_time": round(proc_time, 2),
-        "layout": "streamer" if streamer_layout is not None else forced_mode,
+        "layout": streamer_layout["layout"] if streamer_layout is not None else forced_mode,
         "streamer_layout": streamer_layout,
     }
 
