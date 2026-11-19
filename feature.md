@@ -86,7 +86,7 @@ YouTube URL / local file
 - Detector: `highheat4/webcam-detect` (YOLO12s, pinned revision) on CPU at 640 px, over 12 frames spread across the first 3 minutes.
 - Stable cams: keeps only boxes with IoU >= 0.8 in >= 75% of samples (rejects faces inside the stream content); median box per cam, largest first. `--facecam-index` picks one.
 - Stream crop (per axis): cam fully on one side of the centre → crop from the cam's inner edge to the same distance past the centre; cam straddling the centre → full axis; straddling both axes → no crop.
-- Fallback: no stable cam or no usable stream crop → logs it and falls back to `auto`.
+- Fallback: no stable cam or no usable stream crop → logs it and renders the stream content only (`layout` = `stream_only`): a centred 9:16 crop of the source stretched over the whole 1080x1920 frame.
 - `facecam_detect.py` also runs standalone and prints the detection result JSON.
 - MediaPipe is imported only for the face-tracking modes.
 - Encoding: frames piped to ffmpeg; `h264_nvenc` (CQ 19) if available, else `libx264` (CRF 18).
@@ -151,7 +151,7 @@ python scripts/render_captions.py -v ./temp_work/cropped.mp4 -t ./temp_work/tran
 
 - Run step by step, `auto_clip.py` is not wired into steps 3 and 4 (`start` / `end` are passed by hand); only `clip.py` chains them.
 - `auto_clip.py` has no semantic (LLM) scoring; it ranks on cheap signals only.
-- `clip.py` always renders in streamer mode (no `--mode` option); it falls back to `auto` only when no stable facecam is found.
+- `clip.py` always renders in streamer mode (no `--mode` option); when no stable facecam is found it renders the stream content only (`stream_only` layout).
 - No README.
 - `clip.py` does not pass `--analysis-video`, so facecam detection runs on the 1080p video, not the 360p copy.
 - `--mode stacked` / `split` are accepted by the CLI, but `make_stacked_layout` is never called, so both behave like `auto`.

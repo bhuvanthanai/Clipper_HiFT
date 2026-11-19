@@ -37,7 +37,7 @@ New fixed layout for streamer content in the 1080x1920 output. No face tracking:
 - [x] Rationale: the facecam is a fixed overlay, while faces in gameplay, videos or cutscenes move, change size or disappear between samples.
 - [x] Cluster the stable boxes; the facecam box is the median of its cluster.
 - [x] When several stable cams are found, pick the largest one (or expose `--facecam-index`).
-- [x] When no stable cam is found, log it and fall back to the existing `auto` layout instead of guessing.
+- [x] When no stable cam is found, log it and render the stream content only (centred 9:16 crop over the whole frame) instead of guessing or falling back to `auto`.
 - [ ] Benchmark on real VODs (single cam, multi-cam, borderless cams, react streams with faces in the content) before wiring it in.
 - [x] Bottom two thirds (1080x1280): crop the stream content so the facecam overlay is left out.
 - [x] Top third (1080x640): crop the facecam region and stretch it to 1080x640 (no aspect-ratio preservation for now).
