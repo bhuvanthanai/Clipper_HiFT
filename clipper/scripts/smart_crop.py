@@ -148,14 +148,18 @@ def resolve_streamer_layout(
     frame_h: int,
     target_h: int,
     facecam_index: int,
+    facecam_detection: dict | None,
 ) -> dict | None:
     """
-    Detects the facecam once (on the analysis video) and returns pixel boxes for the
-    source frame, or None when no stable facecam (or no usable stream crop) is found.
+    Returns pixel boxes for the source frame from a precomputed facecam_detect.py result,
+    or detects the facecam once (on the analysis video) when none is given. Returns None
+    when no stable facecam (or no usable stream crop) is found.
     """
-    from facecam_detect import detect_facecam
+    if facecam_detection is None:
+        from facecam_detect import detect_facecam
 
-    detection = detect_facecam(input_paths=[analysis_video_path], facecam_index=facecam_index)
+        facecam_detection = detect_facecam(input_paths=[analysis_video_path], facecam_index=facecam_index)
+    detection = facecam_detection
     print(
         f"[smart_crop] Facecam detection: {len(detection['stable_facecams'])} stable cam(s) from "
         f"{detection['sampled_frames']} frames in {detection['elapsed_seconds']}s",
@@ -208,6 +212,7 @@ def process_smart_crop(
     forced_mode: str = "auto",
     analysis_video_path: str | None = None,
     facecam_index: int = 0,
+    facecam_detection: dict | None = None,
 ):
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input file not found: {input_path}")
@@ -250,6 +255,7 @@ def process_smart_crop(
             frame_h=orig_h,
             target_h=target_h,
             facecam_index=facecam_index,
+            facecam_detection=facecam_detection,
         )
         if streamer_layout is None:
             print("[smart_crop] No stable facecam found; falling back to auto layout.", file=sys.stderr)
@@ -463,12 +469,17 @@ def main():
     parser.add_argument("--mode", "-m", choices=["auto", "face", "stacked", "split", "pillarbox", "streamer"], default="auto", help="Cropping mode")
     parser.add_argument("--analysis-video", default=None, help="Low-res copy of --input (same timeline) used for facecam detection in streamer mode")
     parser.add_argument("--facecam-index", type=int, default=0, help="Streamer mode: which stable facecam to use, largest first (default 0)")
+    parser.add_argument("--facecam-detection", default=None, help="Streamer mode: facecam_detect.py result JSON to reuse instead of detecting again")
     parser.add_argument("--fps", type=float, default=60.0, help="Target framerate (default 60)")
     parser.add_argument("--alpha", type=float, default=0.08, help="EMA temporal smoothing factor")
     parser.add_argument("--timeout", type=float, default=1.5, help="Seconds without face before pillarbox fallback")
     args = parser.parse_args()
     
     try:
+        facecam_detection = None
+        if args.facecam_detection:
+            with open(args.facecam_detection, "r", encoding="utf-8") as detection_file:
+                facecam_detection = json.load(detection_file)
         res = process_smart_crop(
             input_path=args.input,
             output_path=args.output,
@@ -480,6 +491,7 @@ def main():
             forced_mode=args.mode,
             analysis_video_path=args.analysis_video,
             facecam_index=args.facecam_index,
+            facecam_detection=facecam_detection,
         )
         print(json.dumps(res, indent=2))
         sys.exit(0)

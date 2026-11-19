@@ -196,7 +196,7 @@ def build_analysis_copy(input_path: str, output_path: str) -> str:
     return output_path
 
 
-def download_with_yt_dlp(url: str, output_dir: str, format_selector: str, out_template: str) -> tuple:
+def download_with_yt_dlp(url: str, output_dir: str, format_selector: str, out_template: str, extra_args: list) -> tuple:
     """Downloads url with yt-dlp; returns (downloaded_file_path, title)."""
     cmd = [
         sys.executable,
@@ -217,6 +217,7 @@ def download_with_yt_dlp(url: str, output_dir: str, format_selector: str, out_te
         "--no-check-certificates",
         "--no-playlist",
         "--print-json",
+        *extra_args,
         "-o",
         out_template,
         url,
@@ -252,8 +253,16 @@ def download_with_yt_dlp(url: str, output_dir: str, format_selector: str, out_te
     return downloaded_file, info.get("title", Path(downloaded_file).stem)
 
 
-def download_youtube(url: str, output_dir: str) -> dict:
+def get_download_section_args(download_section: str | None) -> list:
+    """yt-dlp args that limit the download to a START-END time range (seconds or HH:MM:SS), if one is given."""
+    if not download_section:
+        return []
+    return ["--download-sections", f"*{download_section}", "--force-keyframes-at-cuts"]
+
+
+def download_youtube(url: str, output_dir: str, download_section: str | None) -> dict:
     os.makedirs(output_dir, exist_ok=True)
+    section_args = get_download_section_args(download_section=download_section)
 
     print(f"[ingest] Fetching media from YouTube URL: {url}", file=sys.stderr)
     main_file, title = download_with_yt_dlp(
@@ -261,7 +270,11 @@ def download_youtube(url: str, output_dir: str) -> dict:
         output_dir,
         format_selector=MAIN_FORMAT_SELECTOR,
         out_template=os.path.join(output_dir, "%(title).80s [%(id)s].%(ext)s"),
+        extra_args=["--write-info-json", *section_args],
     )
+    info_json_path = str(Path(main_file).with_suffix(".info.json"))
+    with open(info_json_path, "r", encoding="utf-8") as info_file:
+        video_id = json.load(info_file).get("id")
     main_file = get_h264_video_path(main_file, is_audio_kept=True)
 
     print("[ingest] Fetching 360p analysis copy from YouTube", file=sys.stderr)
@@ -271,6 +284,7 @@ def download_youtube(url: str, output_dir: str) -> dict:
             output_dir,
             format_selector=ANALYSIS_FORMAT_SELECTOR,
             out_template=os.path.join(output_dir, "%(title).80s [%(id)s].360p.%(ext)s"),
+            extra_args=section_args,
         )
         analysis_file = get_h264_video_path(analysis_file, is_audio_kept=False)
     except (RuntimeError, FileNotFoundError) as err:
@@ -281,6 +295,9 @@ def download_youtube(url: str, output_dir: str) -> dict:
     meta["title"] = title
     meta["file_path"] = os.path.abspath(main_file)
     meta["source_type"] = "youtube"
+    meta["video_id"] = video_id
+    meta["info_json_path"] = os.path.abspath(info_json_path)
+    meta["download_section"] = download_section
     add_analysis_metadata(meta, analysis_file)
     return meta
 
@@ -342,6 +359,7 @@ def main():
     parser.add_argument("--input", "-i", required=True, help="YouTube URL or local video file path")
     parser.add_argument("--output-dir", "-o", default="./temp_work", help="Output staging directory")
     parser.add_argument("--json", action="store_true", help="Output metadata as JSON to stdout")
+    parser.add_argument("--download-section", default=None, help="YouTube only: download just START-END (seconds or HH:MM:SS), e.g. 3600-4080")
     args = parser.parse_args()
 
     input_val = args.input.strip()
@@ -349,7 +367,7 @@ def main():
 
     try:
         if is_url:
-            result = download_youtube(input_val, args.output_dir)
+            result = download_youtube(input_val, args.output_dir, download_section=args.download_section)
         else:
             result = ingest_local_file(input_val, args.output_dir)
 
