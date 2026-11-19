@@ -1,0 +1,10 @@
+# Python deps for clipper/. Also needs ffmpeg + ffprobe on PATH (with libass for captions).
+yt-dlp
+faster-whisper
+av==14.2.0  # faster-whisper 1.2.x breaks on PyAV >= 15 (metadata_errors kwarg)
+opencv-python
+numpy
+ultralytics  # facecam detection (streamer mode); install the CPU torch wheel to keep it light
+huggingface_hub
+mediapipe==0.10.21  # face-tracking modes (auto/face); 1.x dropped mp.solutions; needs numpy<2
+pytest

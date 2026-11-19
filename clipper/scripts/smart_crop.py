@@ -22,7 +22,6 @@ from pathlib import Path
 os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "matplotlib"))
 
 import cv2
-import mediapipe as mp
 import numpy as np
 
 FFMPEG_CANDIDATES = [
@@ -140,6 +139,87 @@ def make_blurred_pillarbox(frame, target_w=1080, target_h=1920):
     return bg
 
 
+STREAMER_FACECAM_HEIGHT_RATIO = 1.0 / 3.0
+
+
+def get_stream_only_layout(frame_w: int, frame_h: int, target_w: int, target_h: int) -> dict:
+    """Centred crop of the source frame at the output aspect ratio (full height for landscape sources)."""
+    crop_w = min(frame_w, int(round(frame_h * target_w / target_h)))
+    crop_h = min(frame_h, int(round(crop_w * target_h / target_w)))
+    x1 = (frame_w - crop_w) // 2
+    y1 = (frame_h - crop_h) // 2
+    return {
+        "layout": "stream_only",
+        "facecam_box": None,
+        "stream_box": [x1, y1, x1 + crop_w, y1 + crop_h],
+        "facecam_height": 0,
+        "stable_facecam_count": 0,
+    }
+
+
+def resolve_streamer_layout(
+    analysis_video_path: str,
+    frame_w: int,
+    frame_h: int,
+    target_w: int,
+    target_h: int,
+    facecam_index: int,
+    facecam_detection: dict | None,
+) -> dict | None:
+    """
+    Returns pixel boxes for the source frame from a precomputed facecam_detect.py result,
+    or detects the facecam once (on the analysis video) when none is given. When no stable
+    facecam (or no usable stream crop) is found, returns a stream-only layout: a centred
+    9:16 crop of the stream content over the whole output frame.
+    """
+    if facecam_detection is None:
+        from facecam_detect import detect_facecam
+
+        facecam_detection = detect_facecam(input_paths=[analysis_video_path], facecam_index=facecam_index)
+    detection = facecam_detection
+    print(
+        f"[smart_crop] Facecam detection: {len(detection['stable_facecams'])} stable cam(s) from "
+        f"{detection['sampled_frames']} frames in {detection['elapsed_seconds']}s",
+        file=sys.stderr,
+    )
+    if detection["facecam"] is None or detection["stream_box"] is None:
+        reason = "no stable facecam" if detection["facecam"] is None else "facecam straddles the frame centre on both axes"
+        print(f"[smart_crop] {reason}; rendering the stream content only.", file=sys.stderr)
+        return get_stream_only_layout(frame_w=frame_w, frame_h=frame_h, target_w=target_w, target_h=target_h)
+
+    def get_box_px(box_normalised):
+        return [
+            int(round(box_normalised[0] * frame_w)),
+            int(round(box_normalised[1] * frame_h)),
+            int(round(box_normalised[2] * frame_w)),
+            int(round(box_normalised[3] * frame_h)),
+        ]
+
+    return {
+        "layout": "streamer",
+        "facecam_box": get_box_px(detection["facecam"]["box"]),
+        "stream_box": get_box_px(detection["stream_box"]),
+        "facecam_height": int(round(target_h * STREAMER_FACECAM_HEIGHT_RATIO)),
+        "stable_facecam_count": len(detection["stable_facecams"]),
+    }
+
+
+def make_streamer_frame(frame, streamer_layout: dict, target_w: int, target_h: int):
+    """
+    Facecam stretched over the top third and stream crop stretched over the bottom two
+    thirds; with no facecam, the stream crop fills the whole frame.
+    """
+    sx1, sy1, sx2, sy2 = streamer_layout["stream_box"]
+    if streamer_layout["facecam_box"] is None:
+        return cv2.resize(frame[sy1:sy2, sx1:sx2], (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+    fx1, fy1, fx2, fy2 = streamer_layout["facecam_box"]
+    facecam_height = streamer_layout["facecam_height"]
+    canvas = np.empty((target_h, target_w, 3), dtype=np.uint8)
+    canvas[:facecam_height] = cv2.resize(frame[fy1:fy2, fx1:fx2], (target_w, facecam_height), interpolation=cv2.INTER_LINEAR)
+    canvas[facecam_height:] = cv2.resize(frame[sy1:sy2, sx1:sx2], (target_w, target_h - facecam_height), interpolation=cv2.INTER_LINEAR)
+    return canvas
+
+
 def process_smart_crop(
     input_path: str,
     output_path: str,
@@ -152,6 +232,9 @@ def process_smart_crop(
     deadband_px: float = 20.0,
     no_face_timeout: float = 1.5,
     forced_mode: str = "auto",
+    analysis_video_path: str | None = None,
+    facecam_index: int = 0,
+    facecam_detection: dict | None = None,
 ):
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input file not found: {input_path}")
@@ -186,9 +269,26 @@ def process_smart_crop(
         crop_w += 1
     max_crop_x = max(0, orig_w - crop_w)
     
+    streamer_layout = None
+    if forced_mode == "streamer":
+        streamer_layout = resolve_streamer_layout(
+            analysis_video_path=analysis_video_path or input_path,
+            frame_w=orig_w,
+            frame_h=orig_h,
+            target_w=target_w,
+            target_h=target_h,
+            facecam_index=facecam_index,
+            facecam_detection=facecam_detection,
+        )
+        print(f"[smart_crop] Streamer layout: {streamer_layout}", file=sys.stderr)
+
     # Initialize MediaPipe Face Detection
-    mp_face_detection = mp.solutions.face_detection
-    face_detector = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
+    face_detector = None
+    if streamer_layout is None:
+        import mediapipe as mp
+
+        mp_face_detection = mp.solutions.face_detection
+        face_detector = mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
     
     # Tracking state
     smoothed_center_x = orig_w / 2.0
@@ -244,7 +344,11 @@ def process_smart_crop(
                 
             frame_idx += 1
             dt = 1.0 / orig_fps
-            
+
+            if streamer_layout is not None:
+                ffmpeg_proc.stdin.write(make_streamer_frame(frame, streamer_layout, target_w, target_h).tobytes())
+                continue
+
             # --- Face Detection ---
             has_face = False
             detected_face_x = None
@@ -330,7 +434,8 @@ def process_smart_crop(
             
     finally:
         cap.release()
-        face_detector.close()
+        if face_detector is not None:
+            face_detector.close()
         if ffmpeg_proc.stdin:
             ffmpeg_proc.stdin.close()
         ffmpeg_proc.wait()
@@ -369,6 +474,8 @@ def process_smart_crop(
         "resolution": f"{target_w}x{target_h}",
         "frames": frame_idx,
         "processing_time": round(proc_time, 2),
+        "layout": streamer_layout["layout"] if streamer_layout is not None else forced_mode,
+        "streamer_layout": streamer_layout,
     }
 
 
@@ -378,13 +485,20 @@ def main():
     parser.add_argument("--output", "-o", required=True, help="Path to output 9:16 video")
     parser.add_argument("--start", "-s", type=float, default=None, help="Start time in seconds")
     parser.add_argument("--end", "-e", type=float, default=None, help="End time in seconds")
-    parser.add_argument("--mode", "-m", choices=["auto", "face", "stacked", "split", "pillarbox"], default="auto", help="Cropping mode")
+    parser.add_argument("--mode", "-m", choices=["auto", "face", "stacked", "split", "pillarbox", "streamer"], default="auto", help="Cropping mode")
+    parser.add_argument("--analysis-video", default=None, help="Low-res copy of --input (same timeline) used for facecam detection in streamer mode")
+    parser.add_argument("--facecam-index", type=int, default=0, help="Streamer mode: which stable facecam to use, largest first (default 0)")
+    parser.add_argument("--facecam-detection", default=None, help="Streamer mode: facecam_detect.py result JSON to reuse instead of detecting again")
     parser.add_argument("--fps", type=float, default=60.0, help="Target framerate (default 60)")
     parser.add_argument("--alpha", type=float, default=0.08, help="EMA temporal smoothing factor")
     parser.add_argument("--timeout", type=float, default=1.5, help="Seconds without face before pillarbox fallback")
     args = parser.parse_args()
     
     try:
+        facecam_detection = None
+        if args.facecam_detection:
+            with open(args.facecam_detection, "r", encoding="utf-8") as detection_file:
+                facecam_detection = json.load(detection_file)
         res = process_smart_crop(
             input_path=args.input,
             output_path=args.output,
@@ -394,6 +508,9 @@ def main():
             ema_alpha=args.alpha,
             no_face_timeout=args.timeout,
             forced_mode=args.mode,
+            analysis_video_path=args.analysis_video,
+            facecam_index=args.facecam_index,
+            facecam_detection=facecam_detection,
         )
         print(json.dumps(res, indent=2))
         sys.exit(0)
