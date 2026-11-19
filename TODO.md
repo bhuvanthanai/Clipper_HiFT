@@ -56,4 +56,4 @@ One command that runs the whole pipeline for a URL.
 - [x] Stream crop box: on an axis where the cam straddles the centre, use the full frame on that axis.
 - [x] Render each clip in the streamer layout (stream crop bottom 1080x1280, facecam top 1080x640) with captions.
 - [x] Store results in an output folder (e.g. `clipper/output/<video-id>/clip_01.mp4`, plus `clips.json`).
-- [x] Defaults: top 3 clips (`--max-clips`), captions on (`--no-captions` to skip).
+- [x] Defaults: top 5 clips (`--max-clips`), captions on (`--no-captions` to skip).
