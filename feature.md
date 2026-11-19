@@ -127,7 +127,7 @@ cd clipper
 python clip.py --url "https://www.youtube.com/watch?v=<id>"   # all steps in one command
 ```
 
-Or with [Task](https://taskfile.dev) (repo root; uses `.venv`, override with `VENV=<path>`; needs `ffmpeg` / `ffprobe` on PATH):
+Or with [Task](https://taskfile.dev) (repo root; uses `.venv`, override with `VENV=<path>`; uses the venv's `bin/python` on Linux/macOS and `Scripts/python.exe` on Windows; `install` builds the venv with `python3` (`python` on Windows), override with `SYSTEM_PYTHON=<path>`, and stops early if that python lacks `venv`/`ensurepip`, e.g. missing `python3-venv` on Ubuntu/Debian; needs `ffmpeg` / `ffprobe` on PATH):
 
 ```bash
 task install                                   # create .venv, install requirements.txt
