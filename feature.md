@@ -23,7 +23,7 @@ YouTube URL / local file
 4. render_captions.py → final MP4 with burned-in karaoke captions
 ```
 
-- Each step is a standalone CLI script in `clipper/scripts/`, run manually in order.
+- Each step is a standalone CLI script in `clipper/scripts/`, run manually in order, or all chained by `clipper/clip.py` (see "End-to-end run (`clip.py`)").
 - Each script prints a JSON result to stdout (`"status": "success"` or `"error"`) and exits non-zero on failure.
 - The clip window (`--start` / `--end`) is chosen by the user, or taken from a ranked entry in `clips.json` from `auto_clip.py`; the same window is passed to steps 3 and 4.
 
@@ -40,8 +40,11 @@ YouTube URL / local file
 - Local file: falls back to a full re-encode (libx264, CRF 20) if the remux fails.
 - Local file analysis copy: always built by downscaling the MP4 to 360p (short side), video only.
 - Probes the result with `ffprobe` for duration, width, height, fps, video codec, format and size.
+- Option: `--download-section START-END` (YouTube only; seconds or HH:MM:SS) downloads just that range (`--force-keyframes-at-cuts`), for both the main video and the analysis copy.
+- YouTube also writes the yt-dlp info JSON (`--write-info-json`) next to the video.
 - Output: the main MP4, the 360p analysis MP4 and `ingest_metadata.json` in the staging dir.
 - Metadata also records `analysis_file_path`, `analysis_width` and `analysis_height`.
+- YouTube metadata also records `video_id`, `info_json_path` and `download_section`.
 
 ## Step 2 — Transcribe (`transcribe.py`)
 
@@ -69,7 +72,7 @@ YouTube URL / local file
 ## Step 3 — Smart crop (`smart_crop.py`)
 
 - Input: `--input` video, `--output` path, optional `--start` / `--end` seconds.
-- Options: `--mode` auto | face | pillarbox | streamer (default `auto`), `--analysis-video`, `--facecam-index` (default 0), `--fps` (default 60), `--alpha` (default 0.08), `--timeout` (default 1.5 s).
+- Options: `--mode` auto | face | pillarbox | streamer (default `auto`), `--analysis-video`, `--facecam-index` (default 0), `--facecam-detection`, `--fps` (default 60), `--alpha` (default 0.08), `--timeout` (default 1.5 s).
 - Crop window: full source height, width sized for 9:16, scaled to 1080x1920.
 - Face tracking: MediaPipe face detection on every frame; follows the largest face.
 - Smoothing: EMA on crop x-position (`--alpha`) with a 20 px deadband to suppress jitter.
@@ -79,6 +82,7 @@ YouTube URL / local file
 - `face` / `pillarbox` modes force one layout for the whole clip.
 - `streamer` mode: static layout, no face tracking; facecam stretched to 1080x640 on top, stream crop stretched to 1080x1280 below.
 - Facecam detection (`facecam_detect.py`): runs once, on `--analysis-video` (low-res copy, same timeline) or `--input`; boxes are scaled to the source frame.
+- `--facecam-detection`: path to a saved `facecam_detect.py` result JSON, reused instead of detecting again (`clip.py` detects once and passes it to every clip).
 - Detector: `highheat4/webcam-detect` (YOLO12s, pinned revision) on CPU at 640 px, over 12 frames spread across the first 3 minutes.
 - Stable cams: keeps only boxes with IoU >= 0.8 in >= 75% of samples (rejects faces inside the stream content); median box per cam, largest first. `--facecam-index` picks one.
 - Stream crop (per axis): cam fully on one side of the centre → crop from the cam's inner edge to the same distance past the centre; cam straddling the centre → full axis; straddling both axes → no crop.
@@ -103,7 +107,25 @@ YouTube URL / local file
 - Burn-in: ffmpeg `ass` filter, libx264 CRF 20, AAC 192k, `yuv420p`, `+faststart`.
 - Output: final MP4 at `--output`; the temporary `.ass` file is deleted.
 
+## End-to-end run (`clip.py`)
+
+- `python clipper/clip.py --url <url>` chains ingest → transcribe → auto clip → facecam detection (once) → smart crop (streamer mode) → captions, per clip. A local video path also works as `--url`.
+- Options: `--max-clips` (default 3), `--min-length` (default 15 s), `--max-length` (default 60 s), `--no-captions`, `--facecam-index` (default 0), `--whisper-model` (default `base`), `--download-section START-END`, `--output-root` (default `clipper/output`), `--work-root` (default `clipper/temp_work`).
+- Intermediates go to `<work-root>/run_<timestamp>/`; results go to `<output-root>/<video id>/` (a sanitised title for local files).
+- Output: `clip_NN.mp4` per ranked clip, plus `clips.json`, `facecam.json` and `run.json` (source, title, signals used, facecam / stream box, per-clip file and layout).
+- Facecam detection runs on frames of the 1080p video, not the 360p copy: at 360p the detector merged two stacked cams into one box in the sample; 1080p frames separate them.
+- With `--download-section`, the heatmap signal is skipped (its times are for the full video).
+- With `--no-captions`, the cropped clip is copied as the final file.
+- Each step runs as a subprocess; any failure aborts the run with a JSON error on stderr.
+
 ## Example end-to-end run
+
+```bash
+cd clipper
+python clip.py --url "https://www.youtube.com/watch?v=<id>"   # all steps in one command
+```
+
+Or step by step:
 
 ```bash
 cd clipper
@@ -116,7 +138,7 @@ python scripts/render_captions.py -v ./temp_work/cropped.mp4 -t ./temp_work/tran
 ## Dependencies
 
 - System: `ffmpeg` and `ffprobe` on PATH (scripts first check hardcoded Windows WinGet paths).
-- Python: `yt-dlp`, `faster-whisper` (with `ctranslate2`), `mediapipe`, `opencv-python`, `numpy`; streamer mode also needs `ultralytics` and `huggingface_hub`.
+- Python: `yt-dlp`, `faster-whisper` (with `ctranslate2`), `mediapipe`, `opencv-python`, `numpy`; streamer mode also needs `ultralytics` and `huggingface_hub`. Install via the root `requirements.txt` (pins `av==14.2.0`, `mediapipe==0.10.21`).
 - Optional: NVIDIA GPU for CUDA transcription and `h264_nvenc` encoding.
 
 ## Test assets (`clipper/temp_work/`)
@@ -127,11 +149,11 @@ python scripts/render_captions.py -v ./temp_work/cropped.mp4 -t ./temp_work/tran
 
 ## Known gaps
 
-- `auto_clip.py` is not wired into steps 3 and 4: the chosen `start` / `end` from `clips.json` are passed by hand.
+- Run step by step, `auto_clip.py` is not wired into steps 3 and 4 (`start` / `end` are passed by hand); only `clip.py` chains them.
 - `auto_clip.py` has no semantic (LLM) scoring; it ranks on cheap signals only.
-- No orchestrator: the four steps are not chained by a single command.
-- No README or `requirements.txt`.
-- `ingest.py` does not yet produce a 360p analysis copy, so streamer mode detects on `--input` unless `--analysis-video` is passed by hand.
+- `clip.py` always renders in streamer mode (no `--mode` option); it falls back to `auto` only when no stable facecam is found.
+- No README.
+- `clip.py` does not pass `--analysis-video`, so facecam detection runs on the 1080p video, not the 360p copy.
 - `--mode stacked` / `split` are accepted by the CLI, but `make_stacked_layout` is never called, so both behave like `auto`.
 - ffmpeg candidate paths are hardcoded to the author's Windows machine.
 - Smart crop feeds frames at the source fps and outputs 60 fps, so 30 fps sources get duplicated frames.
