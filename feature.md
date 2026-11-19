@@ -50,7 +50,7 @@ YouTube URL / local file
 ## Step 3 — Smart crop (`smart_crop.py`)
 
 - Input: `--input` video, `--output` path, optional `--start` / `--end` seconds.
-- Options: `--mode` auto | face | pillarbox (default `auto`), `--fps` (default 60), `--alpha` (default 0.08), `--timeout` (default 1.5 s).
+- Options: `--mode` auto | face | pillarbox | streamer (default `auto`), `--analysis-video`, `--facecam-index` (default 0), `--fps` (default 60), `--alpha` (default 0.08), `--timeout` (default 1.5 s).
 - Crop window: full source height, width sized for 9:16, scaled to 1080x1920.
 - Face tracking: MediaPipe face detection on every frame; follows the largest face.
 - Smoothing: EMA on crop x-position (`--alpha`) with a 20 px deadband to suppress jitter.
@@ -58,9 +58,17 @@ YouTube URL / local file
 - Pillarbox layout: full frame scaled to 1080 width, centred over a blurred, dimmed copy of itself.
 - Layout switch: cross-fades between face-crop and pillarbox (~0.4 s glide).
 - `face` / `pillarbox` modes force one layout for the whole clip.
+- `streamer` mode: static layout, no face tracking; facecam stretched to 1080x640 on top, stream crop stretched to 1080x1280 below.
+- Facecam detection (`facecam_detect.py`): runs once, on `--analysis-video` (low-res copy, same timeline) or `--input`; boxes are scaled to the source frame.
+- Detector: `highheat4/webcam-detect` (YOLO12s, pinned revision) on CPU at 640 px, over 12 frames spread across the first 3 minutes.
+- Stable cams: keeps only boxes with IoU >= 0.8 in >= 75% of samples (rejects faces inside the stream content); median box per cam, largest first. `--facecam-index` picks one.
+- Stream crop (per axis): cam fully on one side of the centre → crop from the cam's inner edge to the same distance past the centre; cam straddling the centre → full axis; straddling both axes → no crop.
+- Fallback: no stable cam or no usable stream crop → logs it and falls back to `auto`.
+- `facecam_detect.py` also runs standalone and prints the detection result JSON.
+- MediaPipe is imported only for the face-tracking modes.
 - Encoding: frames piped to ffmpeg; `h264_nvenc` (CQ 19) if available, else `libx264` (CRF 18).
 - Audio: the matching segment of the source audio is muxed back in (AAC 192k).
-- Output: 9:16 MP4 at `--output`; temp video-only file is deleted.
+- Output: 9:16 MP4 at `--output`; temp video-only file is deleted. The result JSON includes `layout` and `streamer_layout`.
 
 ## Step 4 — Captions (`render_captions.py`)
 
@@ -89,7 +97,7 @@ python scripts/render_captions.py -v ./temp_work/cropped.mp4 -t ./temp_work/tran
 ## Dependencies
 
 - System: `ffmpeg` and `ffprobe` on PATH (scripts first check hardcoded Windows WinGet paths).
-- Python: `yt-dlp`, `faster-whisper` (with `ctranslate2`), `mediapipe`, `opencv-python`, `numpy`.
+- Python: `yt-dlp`, `faster-whisper` (with `ctranslate2`), `mediapipe`, `opencv-python`, `numpy`; streamer mode also needs `ultralytics` and `huggingface_hub`.
 - Optional: NVIDIA GPU for CUDA transcription and `h264_nvenc` encoding.
 
 ## Test assets (`clipper/temp_work/`)
@@ -103,6 +111,7 @@ python scripts/render_captions.py -v ./temp_work/cropped.mp4 -t ./temp_work/tran
 - No highlight detection: clip start/end must be picked by hand.
 - No orchestrator: the four steps are not chained by a single command.
 - No README or `requirements.txt`.
+- `ingest.py` does not yet produce a 360p analysis copy, so streamer mode detects on `--input` unless `--analysis-video` is passed by hand.
 - `--mode stacked` / `split` are accepted by the CLI, but `make_stacked_layout` is never called, so both behave like `auto`.
 - ffmpeg candidate paths are hardcoded to the author's Windows machine.
 - Smart crop feeds frames at the source fps and outputs 60 fps, so 30 fps sources get duplicated frames.
