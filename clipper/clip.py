@@ -164,7 +164,7 @@ def main():
     parser.add_argument("--url", "-u", required=True, help="YouTube URL (a local video path also works)")
     parser.add_argument("--output-root", default=str(CLIPPER_DIR / "output"), help="Clips go to <output-root>/<video id>/")
     parser.add_argument("--work-root", default=str(CLIPPER_DIR / "temp_work"), help="Intermediate files go to <work-root>/run_<timestamp>/")
-    parser.add_argument("--max-clips", type=int, default=3, help="Number of clips to render (default 3)")
+    parser.add_argument("--max-clips", type=int, default=5, help="Number of clips to render (default 5)")
     parser.add_argument("--min-length", type=float, default=15.0, help="Minimum clip length in seconds")
     parser.add_argument("--max-length", type=float, default=60.0, help="Maximum clip length in seconds")
     parser.add_argument("--no-captions", action="store_true", help="Skip burning karaoke captions")
