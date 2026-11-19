@@ -42,7 +42,7 @@ New fixed layout for streamer content in the 1080x1920 output. No face tracking:
 - [ ] Bottom two thirds (1080x1280): crop the stream content so the facecam overlay is left out.
 - [ ] Top third (1080x640): crop the facecam region and stretch it to 1080x640 (no aspect-ratio preservation for now).
 - [ ] Stack the two crops into one 1080x1920 frame.
-- [ ] Add it as a `--mode` option in `smart_crop.py` and document it in `feature.md`.
+- [x] Add it as a `--mode` option in `smart_crop.py` and document it in `feature.md`.
 
 ## 3. End-to-end flow — URL in, clips out
 
