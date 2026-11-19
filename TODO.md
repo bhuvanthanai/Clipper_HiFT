@@ -43,3 +43,17 @@ New fixed layout for streamer content in the 1080x1920 output. No face tracking:
 - [ ] Top third (1080x640): crop the facecam region and stretch it to 1080x640 (no aspect-ratio preservation for now).
 - [ ] Stack the two crops into one 1080x1920 frame.
 - [ ] Add it as a `--mode` option in `smart_crop.py` and document it in `feature.md`.
+
+## 3. End-to-end flow — URL in, clips out
+
+One command that runs the whole pipeline for a URL.
+
+- [ ] New entry script (e.g. `clipper/clip.py --url <url>`).
+- [ ] Ingest: download the 1080p H.264 video plus the 360p analysis copy.
+- [ ] Transcribe, then detect the optimal clip time frames with `auto_clip.py`.
+- [ ] Detect the streamer facecam box once on the 360p copy.
+- [ ] Stream crop box, per axis: from the cam's inner edge to the frame centre, then the same distance past the centre.
+- [ ] Stream crop box: on an axis where the cam straddles the centre, use the full frame on that axis.
+- [ ] Render each clip in the streamer layout (stream crop bottom 1080x1280, facecam top 1080x640) with captions.
+- [ ] Store results in an output folder (e.g. `clipper/output/<video-id>/clip_01.mp4`, plus `clips.json`).
+- [ ] Defaults: top 3 clips (`--max-clips`), captions on (`--no-captions` to skip).
