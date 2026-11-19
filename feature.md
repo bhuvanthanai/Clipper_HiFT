@@ -28,12 +28,17 @@ YouTube URL / local file
 
 - Input: `--input` YouTube URL or local video path; `--output-dir` staging dir (default `./temp_work`).
 - URL detection: starts with `http(s)://` or contains `youtube.com` / `youtu.be`.
-- YouTube: downloads via `yt-dlp`, best video ≤1080p + best audio, merged into MP4.
-- YouTube: uses `android,web` player clients, 5 retries, linear retry sleep, no playlists.
-- Local file: remuxes to MP4 (video copied, audio → AAC 192k, `+faststart`).
+- YouTube: downloads via `yt-dlp` with the default player clients (forcing `android,web` hits YouTube's SABR-only experiment and caps downloads at 360p), 5 retries, linear retry sleep, no playlists.
+- YouTube main video: best video ≤1080p (prefers `avc1`) + best audio, merged into MP4.
+- YouTube analysis copy: a separate 360p video-only H.264 download on the same timeline; if it fails, the main video is downscaled instead.
+- H.264 only: any non-H.264 output (AV1, VP9, ...) is transcoded to H.264 (libx264 CRF 20, AAC 192k), so OpenCV builds without AV1/VP9 decoders can read it.
+- AV1 retry: if the default decoder (libdav1d) fails on a mid-GOP cut, the transcode is retried with `libaom-av1`.
+- Local file: if already H.264, remuxes to MP4 (video copied, audio → AAC 192k, `+faststart`); otherwise transcodes to H.264.
 - Local file: falls back to a full re-encode (libx264, CRF 20) if the remux fails.
-- Probes the result with `ffprobe` for duration, width, height, fps, format and size.
-- Output: the MP4 plus `ingest_metadata.json` in the staging dir.
+- Local file analysis copy: always built by downscaling the MP4 to 360p (short side), video only.
+- Probes the result with `ffprobe` for duration, width, height, fps, video codec, format and size.
+- Output: the main MP4, the 360p analysis MP4 and `ingest_metadata.json` in the staging dir.
+- Metadata also records `analysis_file_path`, `analysis_width` and `analysis_height`.
 
 ## Step 2 — Transcribe (`transcribe.py`)
 
