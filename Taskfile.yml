@@ -2,13 +2,17 @@ version: "3"
 
 vars:
   VENV: '{{.VENV | default ".venv"}}'
-  PYTHON: "{{.VENV}}/bin/python"
+  PYTHON: '{{if eq OS "windows"}}{{.VENV}}/Scripts/python.exe{{else}}{{.VENV}}/bin/python{{end}}'
+  SYSTEM_PYTHON: '{{.SYSTEM_PYTHON | default (eq OS "windows" | ternary "python" "python3")}}'
 
 tasks:
   install:
     desc: Create the virtualenv and install Python dependencies
+    preconditions:
+      - sh: "{{.SYSTEM_PYTHON}} -c 'import venv, ensurepip'"
+        msg: "{{.SYSTEM_PYTHON}} can't create virtualenvs: on Ubuntu/Debian run `sudo apt install python3-venv`, or pass SYSTEM_PYTHON=<python with venv>"
     cmds:
-      - python3 -m venv {{.VENV}}
+      - "{{.SYSTEM_PYTHON}} -m venv {{.VENV}}"
       - "{{.PYTHON}} -m pip install --upgrade pip"
       - "{{.PYTHON}} -m pip install -r requirements.txt"
     status:
