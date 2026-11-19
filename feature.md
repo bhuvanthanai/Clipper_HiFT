@@ -112,7 +112,9 @@ YouTube URL / local file
 - `python clipper/clip.py --url <url>` chains ingest → transcribe → auto clip → facecam detection (once) → smart crop (streamer mode) → captions, per clip. A local video path also works as `--url`.
 - Options: `--max-clips` (default 5), `--min-length` (default 15 s), `--max-length` (default 60 s), `--no-captions`, `--facecam-index` (default 0), `--whisper-model` (default `base`), `--download-section START-END`, `--output-root` (default `clipper/output`), `--work-root` (default `clipper/temp_work`).
 - Intermediates go to `<work-root>/run_<timestamp>/`; results go to `<output-root>/<video id>/` (a sanitised title for local files).
-- Output: `clip_NN.mp4` per ranked clip, plus `clips.json`, `facecam.json` and `run.json` (source, title, signals used, facecam / stream box, per-clip file and layout).
+- Output: `clip_NN.mp4` per ranked clip, plus `clips.json`, `facecam.json`, `run.json` (source, title, signals used, facecam / stream box, per-clip file and layout, `preview` path) and `preview.jpg`.
+- `preview.jpg` is a contact sheet: one row per clip, frames at 10%, 50% and 90%, each labelled with clip name, layout and source time.
+- `python clipper/validate.py` renders the reference inputs (`facecam`: `temp_work/test_section.mp4`; `no-facecam`: IShowSpeed VOD minute 60) and prints each run's `preview.jpg` path. Options: `--only facecam|no-facecam`, `--max-clips` (default 2), `--output-root` (default `clipper/temp_work/validation`). See `TESTING.md` for what to check in the previews.
 - Facecam detection runs on frames of the 1080p video, not the 360p copy: at 360p the detector merged two stacked cams into one box in the sample; 1080p frames separate them.
 - With `--download-section`, the heatmap signal is skipped (its times are for the full video).
 - With `--no-captions`, the cropped clip is copied as the final file.
