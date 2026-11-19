@@ -86,7 +86,7 @@ YouTube URL / local file
 - Detector: `highheat4/webcam-detect` (YOLO12s, pinned revision) on CPU at 640 px, over 12 frames spread across the first 3 minutes.
 - Stable cams: keeps only boxes with IoU >= 0.8 in >= 75% of samples (rejects faces inside the stream content); median box per cam, largest first. `--facecam-index` picks one.
 - Stream crop (per axis): cam fully on one side of the centre → crop from the cam's inner edge to the same distance past the centre; cam straddling the centre → full axis; straddling both axes → no crop.
-- Fallback: no stable cam or no usable stream crop → logs it and renders the stream content only (`layout` = `stream_only`): a centred 9:16 crop of the source stretched over the whole 1080x1920 frame.
+- Fallback: no stable cam or no usable stream crop → logs it and renders the stream content only (`layout` = `stream_only`): a centred 9:16 crop of the source scaled (aspect kept) to fill the 1080x1920 frame.
 - `facecam_detect.py` also runs standalone and prints the detection result JSON.
 - MediaPipe is imported only for the face-tracking modes.
 - Encoding: frames piped to ffmpeg; `h264_nvenc` (CQ 19) if available, else `libx264` (CRF 18).
