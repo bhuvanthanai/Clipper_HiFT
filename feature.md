@@ -127,6 +127,16 @@ cd clipper
 python clip.py --url "https://www.youtube.com/watch?v=<id>"   # all steps in one command
 ```
 
+Or with [Task](https://taskfile.dev) (repo root; uses `.venv`, override with `VENV=<path>`; needs `ffmpeg` / `ffprobe` on PATH):
+
+```bash
+task install                                   # create .venv, install requirements.txt
+task clip URL="https://www.youtube.com/watch?v=<id>" [-- extra clip.py flags]
+task clip:section URL=<url> SECTION=3600-3780  # adds --download-section
+task test                                      # integration tests
+task validate                                  # clipper/validate.py
+```
+
 Or step by step:
 
 ```bash

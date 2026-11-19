@@ -4,14 +4,14 @@ Every change goes through both steps below before it is called done.
 
 ## 1. Integration tests
 
-- Run: `python -m pytest -q clipper/tests` (needs `ffmpeg` / `ffprobe` on PATH and `requirements.txt` installed).
+- Run: `python -m pytest -q clipper/tests` (needs `ffmpeg` / `ffprobe` on PATH and `requirements.txt` installed). Shortcut: `task test` (after `task install`).
 - Tests use real ffmpeg, real models and the sample video; no mocks.
 
 ## 2. Visual validation (screenshot)
 
 Tests check sizes, layouts and JSON, but they cannot tell a good crop from a bad one. So every change that can affect the rendered clips also gets a visual check.
 
-- Run: `python clipper/validate.py` (add `--only facecam` or `--only no-facecam` for one input).
+- Run: `python clipper/validate.py` (add `--only facecam` or `--only no-facecam` for one input). Shortcut: `task validate [-- --only facecam]`.
 - It renders the reference inputs with `clip.py` and prints the path of each run's `preview.jpg`.
 - `preview.jpg` is a contact sheet: one row per clip, frames at 10%, 50% and 90%, labelled with clip, layout and source time.
 - Reference inputs:
