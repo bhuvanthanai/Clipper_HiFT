@@ -6,5 +6,5 @@ opencv-python
 numpy
 ultralytics  # facecam detection (streamer mode); install the CPU torch wheel to keep it light
 huggingface_hub
-mediapipe==0.10.21  # face-tracking modes (auto/face); 1.x dropped mp.solutions; needs numpy<2
+mediapipe==0.10.21; python_version < "3.13"  # face-tracking modes (auto/face) only; 1.x dropped mp.solutions; no wheels for 3.13+, where clip.py still works
 pytest

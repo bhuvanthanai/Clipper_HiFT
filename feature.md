@@ -127,7 +127,7 @@ cd clipper
 python clip.py --url "https://www.youtube.com/watch?v=<id>"   # all steps in one command
 ```
 
-Or with [Task](https://taskfile.dev) (repo root; uses `.venv`, override with `VENV=<path>`; uses the venv's `bin/python` on Linux/macOS and `Scripts/python.exe` on Windows; `install` builds the venv with `python3` (`python` on Windows), override with `SYSTEM_PYTHON=<path>`, and stops early if that python lacks `venv`/`ensurepip`, e.g. missing `python3-venv` on Ubuntu/Debian; needs `ffmpeg` / `ffprobe` on PATH):
+Or with [Task](https://taskfile.dev) (repo root; uses `.venv`, override with `VENV=<path>`; uses the venv's `bin/python` on Linux/macOS and `Scripts/python.exe` on Windows; `install` builds the venv with `python3` (`python` on Windows), override with `SYSTEM_PYTHON=<path>`, and stops early if that python is older than 3.10 or lacks `venv`/`ensurepip` (e.g. missing `python3-venv` on Ubuntu/Debian), with a per-OS fix hint; `clip`/`test`/`validate` check that `ffmpeg` / `ffprobe` run, with a per-OS install hint (winget on Windows, apt/brew elsewhere); tasks set `PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8` so progress symbols don't crash a Windows console):
 
 ```bash
 task install                                   # create .venv, install requirements.txt
@@ -150,7 +150,7 @@ python scripts/render_captions.py -v ./temp_work/cropped.mp4 -t ./temp_work/tran
 ## Dependencies
 
 - System: `ffmpeg` and `ffprobe` on PATH (scripts first check hardcoded Windows WinGet paths).
-- Python: `yt-dlp`, `faster-whisper` (with `ctranslate2`), `mediapipe`, `opencv-python`, `numpy`; streamer mode also needs `ultralytics` and `huggingface_hub`. Install via the root `requirements.txt` (pins `av==14.2.0`, `mediapipe==0.10.21`).
+- Python: `yt-dlp`, `faster-whisper` (with `ctranslate2`), `mediapipe`, `opencv-python`, `numpy`; streamer mode also needs `ultralytics` and `huggingface_hub`. Install via the root `requirements.txt` (pins `av==14.2.0`, `mediapipe==0.10.21`; mediapipe is skipped on Python 3.13+, which has no wheel for it, so only the manual `auto`/`face` modes are unavailable there and `clip.py` still works).
 - Optional: NVIDIA GPU for CUDA transcription and `h264_nvenc` encoding.
 
 ## Test assets (`clipper/temp_work/`)
