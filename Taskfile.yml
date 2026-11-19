@@ -16,7 +16,7 @@ tasks:
       - "{{.PYTHON}} -m pip install --upgrade pip"
       - "{{.PYTHON}} -m pip install -r requirements.txt"
     status:
-      - test -x {{.PYTHON}}
+      - test -f {{.PYTHON}}
 
   clip:
     desc: "Make clips from a URL: task clip URL=<youtube url> [-- extra clip.py flags]"
@@ -49,7 +49,7 @@ tasks:
   check:tools:
     internal: true
     preconditions:
-      - sh: test -x {{.PYTHON}}
+      - sh: test -f {{.PYTHON}}
         msg: "No virtualenv at {{.VENV}}: run `task install` (or pass VENV=<path>)"
       - sh: command -v ffmpeg && command -v ffprobe
         msg: "ffmpeg and ffprobe must be on PATH"
