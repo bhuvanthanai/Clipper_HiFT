@@ -16,15 +16,15 @@ Today the clip window (`--start` / `--end`) is chosen by hand. Replace that with
 
 ## Ingest — 360p analysis copy
 
-- [ ] In `ingest.py`, download a 360p copy alongside the 1080p video (same source, same timeline).
-- [ ] Record both paths in `ingest_metadata.json`.
+- [x] In `ingest.py`, download a 360p copy alongside the 1080p video (same source, same timeline).
+- [x] Record both paths in `ingest_metadata.json`.
 - [ ] Run crop-location analysis (facecam detection, any frame scanning) on the 360p copy only.
 - [ ] Scale detected boxes from 360p to the 1080p frame before cropping; render from the 1080p copy.
 
 ## Bug — AV1 sources can't be decoded
 
-- [ ] `test_section.mp4` is AV1; OpenCV builds without an AV1 decoder (no dav1d) fail to read it, so `smart_crop.py` breaks on such input.
-- [ ] Prefer H.264 in `ingest.py`'s yt-dlp format string (e.g. `bestvideo[vcodec^=avc1][height<=1080]`), or transcode non-H.264 input to H.264 during ingest.
+- [x] `test_section.mp4` is AV1; OpenCV builds without an AV1 decoder (no dav1d) fail to read it, so `smart_crop.py` breaks on such input.
+- [x] Prefer H.264 in `ingest.py`'s yt-dlp format string (e.g. `bestvideo[vcodec^=avc1][height<=1080]`), or transcode non-H.264 input to H.264 during ingest.
 
 ## 2. Streamer layout — facecam top third, stream content bottom two thirds
 
