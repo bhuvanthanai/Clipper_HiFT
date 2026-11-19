@@ -4,15 +4,15 @@
 
 Today the clip window (`--start` / `--end`) is chosen by hand. Replace that with automatic highlight detection.
 
-- [ ] Research approaches for finding the best clip sections and compare them on quality, cost and speed.
-- [ ] Transcript-based: score windows of the Whisper transcript with an LLM for hook, payoff and standalone sense.
-- [ ] Audio-based: find energy, loudness and laughter/shouting spikes.
-- [ ] Video-based: find scene cuts, motion spikes and face-expression changes.
-- [ ] Engagement-based: use YouTube "most replayed" heatmap and chat-replay activity when available.
-- [ ] Combined: blend the signals above into one score per candidate window.
-- [ ] Decide clip length rules (e.g. 15–60 s) and snap boundaries to sentence ends and silences.
-- [ ] Output a ranked list of `{start, end, score, reason}` that steps 3 and 4 can consume.
-- [ ] Write up the chosen approach and the reasons in `feature.md`.
+- [x] Research approaches for finding the best clip sections and compare them on quality, cost and speed (`docs/auto_clipping.md`).
+- [ ] Transcript-based: score windows of the Whisper transcript with an LLM for hook, payoff and standalone sense. (Only cheap word-rate/exclamation cues are done.)
+- [x] Audio-based: find energy, loudness and laughter/shouting spikes (loudness peaks; no laughter model).
+- [x] Video-based: find scene cuts, motion spikes (motion only; no face-expression changes).
+- [x] Engagement-based: use YouTube "most replayed" heatmap and chat-replay activity when available.
+- [x] Combined: blend the signals above into one score per candidate window.
+- [x] Decide clip length rules (e.g. 15–60 s) and snap boundaries to sentence ends and silences.
+- [x] Output a ranked list of `{start, end, score, reason}` that steps 3 and 4 can consume.
+- [x] Write up the chosen approach and the reasons (`docs/auto_clipping.md`, `feature.md`).
 
 ## Ingest — 360p analysis copy
 

@@ -14,6 +14,9 @@ YouTube URL / local file
 2. transcribe.py      → temp_work/<name>_transcript.json (word timestamps)
         │
         ▼
+2b. auto_clip.py      → temp_work/clips.json (optional: ranked best windows)
+        │
+        ▼
 3. smart_crop.py      → 9:16 clip for [start, end] with original audio
         │
         ▼
@@ -22,7 +25,7 @@ YouTube URL / local file
 
 - Each step is a standalone CLI script in `clipper/scripts/`, run manually in order.
 - Each script prints a JSON result to stdout (`"status": "success"` or `"error"`) and exits non-zero on failure.
-- The clip window (`--start` / `--end`) is chosen by the user; the same window is passed to steps 3 and 4.
+- The clip window (`--start` / `--end`) is chosen by the user, or taken from a ranked entry in `clips.json` from `auto_clip.py`; the same window is passed to steps 3 and 4.
 
 ## Step 1 — Ingest (`ingest.py`)
 
@@ -51,6 +54,17 @@ YouTube URL / local file
 - Output: `--output` JSON (default `./temp_work/<name>_transcript.json`).
 - Transcript shape: detected language, duration, and `segments[]` each with `start`, `end`, `text`, `words[]`.
 - Word shape: `word`, `start`, `end`, `probability`.
+
+## Step 2b — Auto clip (`auto_clip.py`, optional)
+
+- Input: `--video`, `--transcription` (both required); optional `--ingest-metadata`, `--info-json`, `--chat`.
+- Options: `--min-length` (default 15 s), `--max-length` (default 60 s), `--max-clips` (default 5), `--output` (default `./temp_work/clips.json`).
+- Signals, per second: `heatmap` (yt-dlp `heatmap` from `--info-json`), `chat` (live-chat replay rate, `--chat`), `audio` (loudness peaks), `speech` (words/s and excitement cues), `motion` (frame diffs on the analysis copy from `--ingest-metadata` `analysis_file_path`).
+- Fusion weights: heatmap 0.35, chat 0.25, audio 0.2, speech 0.1, motion 0.1; renormalised over the signals present (audio + transcript always).
+- Windows start at transcript segment starts, end at sentence ends or pauses, and are picked greedily without overlap.
+- CPU only, no models: ffmpeg decodes audio and the low-res video; the rest is numpy.
+- Output: `clips.json` with `signals_used` and ranked `clips[]` of `rank`, `start`, `end`, `duration`, `score`, `reason`; pass a clip's `start` / `end` to steps 3 and 4.
+- Research and rationale: `docs/auto_clipping.md`.
 
 ## Step 3 — Smart crop (`smart_crop.py`)
 
@@ -113,7 +127,8 @@ python scripts/render_captions.py -v ./temp_work/cropped.mp4 -t ./temp_work/tran
 
 ## Known gaps
 
-- No highlight detection: clip start/end must be picked by hand.
+- `auto_clip.py` is not wired into steps 3 and 4: the chosen `start` / `end` from `clips.json` are passed by hand.
+- `auto_clip.py` has no semantic (LLM) scoring; it ranks on cheap signals only.
 - No orchestrator: the four steps are not chained by a single command.
 - No README or `requirements.txt`.
 - `ingest.py` does not yet produce a 360p analysis copy, so streamer mode detects on `--input` unless `--analysis-video` is passed by hand.
