@@ -9,7 +9,8 @@ Flow:
 5. smart_crop.py      per clip: streamer layout (facecam top 1/3, stream crop bottom 2/3)
 6. render_captions.py per clip: burn karaoke captions (skipped with --no-captions)
 
-Results land in <output-root>/<video id>/: clip_01.mp4 ..., clips.json, facecam.json, run.json.
+Results land in <output-root>/<video id>/: clip_01.mp4 ..., clips.json, facecam.json, run.json,
+plus preview.jpg: a contact sheet (3 frames per clip) for checking the output visually.
 """
 
 import argparse
@@ -21,6 +22,9 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
+import cv2
+import numpy as np
 
 CLIPPER_DIR = Path(__file__).resolve().parent
 SCRIPTS_DIR = CLIPPER_DIR / "scripts"
@@ -40,6 +44,31 @@ def run_step(step_name: str, script_name: str, script_args: list) -> dict:
     result = json.loads(completed.stdout)
     print(f"[clip] ✔ {step_name} ({time.time() - started_at:.1f}s)", file=sys.stderr)
     return result
+
+
+PREVIEW_FRAME_POSITIONS = (0.1, 0.5, 0.9)
+PREVIEW_FRAME_SIZE = (270, 480)
+
+
+def build_preview_sheet(rendered_clips: list, preview_path: Path) -> Path:
+    """Writes a contact sheet: one row per clip, frames at 10/50/90% of it, labelled with name, layout and time."""
+    rows = []
+    for clip in rendered_clips:
+        capture = cv2.VideoCapture(clip["file"])
+        clip_duration_ms = capture.get(cv2.CAP_PROP_FRAME_COUNT) / (capture.get(cv2.CAP_PROP_FPS) or 30.0) * 1000.0
+        tiles = []
+        for position in PREVIEW_FRAME_POSITIONS:
+            capture.set(cv2.CAP_PROP_POS_MSEC, clip_duration_ms * position)
+            is_frame_read, frame = capture.read()
+            tile = cv2.resize(frame, PREVIEW_FRAME_SIZE) if is_frame_read else np.zeros((PREVIEW_FRAME_SIZE[1], PREVIEW_FRAME_SIZE[0], 3), np.uint8)
+            label = f"{Path(clip['file']).stem} {clip['layout']} @{clip['start'] + clip_duration_ms * position / 1000.0:.0f}s"
+            cv2.rectangle(tile, (0, 0), (PREVIEW_FRAME_SIZE[0], 26), (0, 0, 0), -1)
+            cv2.putText(tile, label, (6, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
+            tiles.append(tile)
+        capture.release()
+        rows.append(np.hstack(tiles))
+    cv2.imwrite(str(preview_path), np.vstack(rows))
+    return preview_path
 
 
 def get_output_folder_name(ingest_result: dict) -> str:
@@ -144,8 +173,12 @@ def run_clip_pipeline(
             "layout": crop_result.get("layout"),
         })
 
+    preview_path = build_preview_sheet(rendered_clips=rendered_clips, preview_path=output_dir / "preview.jpg")
+    print(f"[clip] Preview sheet: {preview_path}", file=sys.stderr)
+
     run_summary = {
         "status": "success",
+        "preview": str(preview_path),
         "source": source,
         "title": ingest_result.get("title"),
         "output_dir": str(output_dir),
